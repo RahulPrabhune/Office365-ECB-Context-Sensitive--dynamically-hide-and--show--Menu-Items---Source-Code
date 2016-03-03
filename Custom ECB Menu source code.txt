@@ -1,0 +1,132 @@
+<script src="/sites/Team/Shared%20Documents/jquery-1.8.3.min.js"></script><script src="/sites/Team/Shared%20Documents/jquery.SPServices-0.4.1.min.js"></script><script>
+
+
+function Custom_AddListMenuItems(m, ctx) {
+    var soapEnv = 
+        "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'> \
+            <soapenv:Body> \
+                 <GetListItems xmlns='http://schemas.microsoft.com/sharepoint/soap/'> \
+                    <listName>" + ctx.listName + "</listName> \
+                    <viewFields> \
+                        <ViewFields> \
+                           <FieldRef Name='Status' /> \
+                       </ViewFields> \
+                    </viewFields> \
+                    <query> \
+                        <Query><Where> \
+                            <Eq> \
+                                <FieldRef Name='ID' /> \
+                                <Value Type='Integer'>" + currentItemID + "</Value> \
+                            </Eq> \
+                        </Where></Query>\
+                    </query> \
+                </GetListItems> \
+            </soapenv:Body> \
+        </soapenv:Envelope>";
+
+
+    var wsurl = ctx.HttpRoot + "/_vti_bin/lists.asmx";
+    
+    $.ajax({
+        async: false,
+        url: wsurl,
+        type: "POST",
+        dataType: "xml",
+        data: soapEnv,
+        complete: function(xData, status) {
+            var status = $(xData.responseXML).find("z\\:row:eq(0)").attr("ows_Status");
+            
+            var menuItem = CASubM(m,"Update Status");
+
+
+            var statusOptions = new Array("Not Started", "In Progress", 
+                    "Completed", "Deferred", "Waiting on someone else");
+
+
+            for(var i in statusOptions) {
+                var statusOption = statusOptions[i];
+                if(statusOption  != status)
+                    CAMOpt(menuItem, statusOption , 
+                    "changeTaskStatus('" + wsurl + "','" + ctx.listName + "','" + 
+                    currentItemID + "','" + statusOption + "');");
+            }
+        },
+        contentType: "text/xml; charset=\"utf-8\""
+    });
+    
+    CAMSep(m);
+    return false;
+}
+
+
+function changeTaskStatus(wsurl, list, itemid, newstatus) {
+    var batch =
+        "<Batch OnError=\"Continue\"> \
+            <Method ID=\"1\" Cmd=\"Update\"> \
+                <Field Name=\"ID\">" + itemid + "</Field> \
+                <Field Name=\"Status\">" + newstatus + "</Field> \
+            </Method> \
+        </Batch>";
+
+
+    var soapEnv =
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?> \
+        <soap:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" \
+            xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" \
+            xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"> \
+          <soap:Body> \
+            <UpdateListItems xmlns=\"http://schemas.microsoft.com/sharepoint/soap/\"> \
+              <listName>" + list + "</listName> \
+              <updates> \
+                " + batch + "</updates> \
+            </UpdateListItems> \
+          </soap:Body> \
+        </soap:Envelope>";
+
+
+    $.ajax({
+        url: wsurl,
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader("SOAPAction",
+            "http://schemas.microsoft.com/sharepoint/soap/UpdateListItems");
+        },
+        type: "POST",
+        dataType: "xml",
+        data: soapEnv,
+        complete: function(xData, result) {
+            window.location.href=window.location.href;
+        },
+        contentType: "text/xml; charset=utf-8"
+    });    
+}
+
+
+function getItemTD(itemid) {
+    var tableid = ctx.listName + "-" + ctx.view;
+    
+    // escape the table id ({ and } should become \{ and \}
+    tableid = tableid.replace(/{/g, "\\{").replace(/}/g, "\\}");
+
+
+    // select them TR for the item
+    $itemrow = $("#" + tableid + " table[id='" + itemid + "']").parent().parent();
+    
+    // select the header row
+    $headerrow = $(">tr:eq(0)", $itemrow.parent());
+
+
+    // select the table in the header row for the specified column
+    $idtable = $("th>div>table[Name='Status']", $headerrow);
+    
+    // calculate the index of the column, based on the idtable
+    var columnIndex =$(">th",$headerrow).index($idtable.parent().parent());
+    
+    // based on the index, let's get the TD
+    return $(">td:eq(" + columnIndex + ")", $itemrow);
+}
+
+
+complete: function(xData, result) {
+    getItemTD(itemid).text(newstatus);
+}
+</script>
